@@ -1,0 +1,36 @@
+const urlParams = new URLSearchParams(window.location.search);
+const msg = urlParams.get('msg');
+
+if (msg) {
+    const API_KEY = "ark-194e76a5-688d-4c76-95b4-c9cf1576bd62-4a240";
+    const MODEL_ID = "doubao-seed-2-0-lite-260428";
+    const API_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
+
+    const req = {
+        model: MODEL_ID,
+        messages: [
+            { role: "system", content: "回答必须严格控制在80字内，简洁直接，无多余废话" },
+            { role: "user", content: msg }
+        ],
+        temperature: 0.5,
+        max_tokens: 120,
+        stream: false
+    };
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", API_URL, false);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("Authorization", "Bearer " + API_KEY);
+    xhr.send(JSON.stringify(req));
+
+    if (xhr.status === 200) {
+        const data = JSON.parse(xhr.responseText);
+        let answer = data.choices[0].message.content.trim();
+        if(answer.length>80) answer = answer.substring(0,77)+"...";
+        document.write(answer);
+    } else {
+        document.write("错误");
+    }
+} else {
+    document.write("请传入msg参数");
+}
