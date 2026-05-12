@@ -5,179 +5,117 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>豆包AI</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: "Microsoft YaHei", sans-serif;
-        }
-
-        body {
-            background-color: #fff;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding-top: 150px;
-        }
-
-        .logo {
-            font-size: 60px;
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 40px;
-        }
-
-        .search-box {
-            width: 600px;
-            height: 50px;
-            border: 1px solid #dcdfe6;
-            border-radius: 25px;
-            display: flex;
-            align-items: center;
-            padding: 0 20px;
-            margin-bottom: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .search-box:hover {
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-        }
-
-        #input {
-            flex: 1;
-            height: 100%;
-            border: none;
-            outline: none;
-            font-size: 18px;
-        }
-
-        #submit {
-            width: 100px;
-            height: 40px;
-            background-color: #409eff;
-            color: white;
-            border: none;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 16px;
-            margin-left: 10px;
-        }
-
-        #submit:hover {
-            background-color: #66b1ff;
-        }
-
-        .result {
-            width: 600px;
-            padding: 20px;
-            border: 1px solid #dcdfe6;
-            border-radius: 10px;
-            background-color: #f5f7fa;
-            line-height: 1.6;
-            font-size: 16px;
-            white-space: pre-wrap;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background: #fff; display: flex; flex-direction: column; align-items: center; padding-top: 150px; }
+        .logo { font-size: 60px; font-weight: bold; color: #333; margin-bottom: 40px; }
+        .search-box { width: 600px; height: 50px; border: 1px solid #dcdfe6; border-radius: 25px; display: flex; align-items: center; padding: 0 20px; margin-bottom: 30px; }
+        #input { flex: 1; height: 100%; border: none; outline: none; font-size: 18px; }
+        #submit { width: 100px; height: 40px; background: #409eff; color: white; border: none; border-radius: 20px; cursor: pointer; }
+        .result { width: 600px; padding: 20px; border: 1px solid #dcdfe6; border-radius: 10px; background: #f5f7fa; }
     </style>
 </head>
 <body>
-    <div class="logo">豆包AI</div>
-    
-    <div class="search-box">
-        <input type="text" id="input" placeholder="请输入你的问题...">
-        <button id="submit">搜索</button>
-    </div>
-
-    <div class="result" id="result"></div>
-
     <script>
-        // 你的豆包API密钥和模型ID（已帮你填好）
-        const API_KEY = "ark-194e76a5-688d-4c76-95b4-c9cf1576bd62-4a240";
-        const MODEL_ID = "doubao-seed-2-0-lite-260428";
-        const API_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
-
-        const input = document.getElementById('input');
-        const submit = document.getElementById('submit');
-        const result = document.getElementById('result');
-
-        // 检查URL是否有msg参数（供ESP32调用）
+        // 关键：把参数检查移到最前面，在页面渲染任何内容之前执行
         const urlParams = new URLSearchParams(window.location.search);
         const msg = urlParams.get('msg');
 
         if (msg) {
-            // API模式：直接返回纯文本
+            // API模式：直接返回纯文本，然后立即终止页面执行
+            const API_KEY = "ark-194e76a5-688d-4c76-95b4-c9cf1576bd62-4a240";
+            const MODEL_ID = "doubao-seed-2-0-lite-260428";
+            const API_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
+
+            async function callDoubao(userText) {
+                const req = {
+                    model: MODEL_ID,
+                    messages: [
+                        { role: "system", content: "回答必须严格控制在80字内，简洁直接，无多余废话" },
+                        { role: "user", content: userText }
+                    ],
+                    temperature: 0.5,
+                    max_tokens: 120,
+                    stream: false
+                };
+
+                const res = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Authorization": "Bearer "+API_KEY },
+                    body: JSON.stringify(req)
+                });
+
+                const data = await res.json();
+                let answer = data.choices[0].message.content.trim();
+                if(answer.length>80) answer = answer.substring(0,77)+"...";
+                return answer;
+            }
+
+            // 调用API，返回纯文本，然后立即停止页面执行
             callDoubao(msg)
                 .then(answer => {
                     document.write(answer);
+                    document.close(); // 关键：关闭文档流，阻止任何后续内容渲染
                 })
-                .catch(error => {
-                    document.write("错误：" + error.message);
+                .catch(err => {
+                    document.write("错误");
+                    document.close();
                 });
         } else {
-            // 浏览器模式：显示搜索界面
-            submit.addEventListener('click', sendMessage);
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    sendMessage();
+            // 浏览器模式：正常渲染页面
+            document.write(`
+                <div class="logo">豆包AI</div>
+                <div class="search-box">
+                    <input type="text" id="input" placeholder="请输入问题...">
+                    <button id="submit">搜索</button>
+                </div>
+                <div class="result" id="result"></div>
+            `);
+
+            // 等待页面加载完成
+            window.onload = function() {
+                const input = document.getElementById('input');
+                const submit = document.getElementById('submit');
+                const result = document.getElementById('result');
+
+                const API_KEY = "ark-194e76a5-688d-4c76-95b4-c9cf1576bd62-4a240";
+                const MODEL_ID = "doubao-seed-2-0-lite-260428";
+                const API_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
+
+                async function callDoubao(userText) {
+                    const req = {
+                        model: MODEL_ID,
+                        messages: [
+                            { role: "system", content: "回答必须严格控制在80字内，简洁直接，无多余废话" },
+                            { role: "user", content: userText }
+                        ],
+                        temperature: 0.5,
+                        max_tokens: 120,
+                        stream: false
+                    };
+
+                    const res = await fetch(API_URL, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Authorization": "Bearer "+API_KEY },
+                        body: JSON.stringify(req)
+                    });
+
+                    const data = await res.json();
+                    let answer = data.choices[0].message.content.trim();
+                    if(answer.length>80) answer = answer.substring(0,77)+"...";
+                    return answer;
                 }
-            });
-        }
 
-        function sendMessage() {
-            const text = input.value.trim();
-            if (!text) return;
+                async function sendMessage() {
+                    const text = input.value.trim();
+                    if(!text) return;
+                    result.textContent = "思考中...";
+                    callDoubao(text).then(ans=>result.textContent=ans).catch(err=>result.textContent="请求失败");
+                }
 
-            result.textContent = "正在思考...";
-            
-            callDoubao(text)
-                .then(answer => {
-                    result.textContent = answer;
-                })
-                .catch(error => {
-                    result.textContent = "出错了：" + error.message;
-                });
-        }
-
-        async function callDoubao(userText) {
-    const requestData = {
-        model: MODEL_ID,
-        messages: [
-            {
-                role: "system",
-                content: "你是一个精简回答助手。所有回答必须严格控制在80字以内，用最凝练的语言直接给出答案，不要有任何多余的解释、客套话和表情符号。"
-            },
-            {
-                role: "user",
-                content: userText
+                submit.onclick = sendMessage;
+                input.onkeydown = e=>e.key==='Enter'&&sendMessage();
             }
-        ],
-        temperature: 0.5, // 降低随机性，回答更准确
-        max_tokens: 120, // 80个汉字≈100个token，留20个余量
-        stream: false
-    };
-
-            const response = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + API_KEY
-        },
-        body: JSON.stringify(requestData)
-    });
-
-             if (!response.ok) {
-        throw new Error("API请求失败");
-    }
-
-    const data = await response.json();
-    let answer = data.choices[0].message.content.trim();
-    
-    // 服务器端强制截断，确保绝对不超过80字
-    if (answer.length > 80) {
-        answer = answer.substring(0, 77) + "...";
-    }
-    
-    return answer;
-}
+        }
     </script>
 </body>
 </html>
