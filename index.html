@@ -16,106 +16,105 @@
 </head>
 <body>
     <script>
-        // 关键：把参数检查移到最前面，在页面渲染任何内容之前执行
+        // 第一行就检查参数，在任何HTML渲染之前
         const urlParams = new URLSearchParams(window.location.search);
         const msg = urlParams.get('msg');
 
         if (msg) {
-            // API模式：直接返回纯文本，然后立即终止页面执行
+            // ESP32模式：同步请求，立即返回纯文本，然后自杀
             const API_KEY = "ark-194e76a5-688d-4c76-95b4-c9cf1576bd62-4a240";
             const MODEL_ID = "doubao-seed-2-0-lite-260428";
             const API_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
 
-            async function callDoubao(userText) {
-                const req = {
-                    model: MODEL_ID,
-                    messages: [
-                        { role: "system", content: "回答必须严格控制在80字内，简洁直接，无多余废话" },
-                        { role: "user", content: userText }
-                    ],
-                    temperature: 0.5,
-                    max_tokens: 120,
-                    stream: false
-                };
+            const req = {
+                model: MODEL_ID,
+                messages: [
+                    { role: "system", content: "回答必须严格控制在80字内，简洁直接，无多余废话" },
+                    { role: "user", content: msg }
+                ],
+                temperature: 0.5,
+                max_tokens: 120,
+                stream: false
+            };
 
-                const res = await fetch(API_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "Authorization": "Bearer "+API_KEY },
-                    body: JSON.stringify(req)
-                });
+            // 关键：使用同步请求，阻塞页面直到API返回
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", API_URL, false); // false = 同步
+            xhr.setRequestHeader("Content-Type", "application/json");
+            xhr.setRequestHeader("Authorization", "Bearer " + API_KEY);
+            xhr.send(JSON.stringify(req));
 
-                const data = await res.json();
+            if (xhr.status === 200) {
+                const data = JSON.parse(xhr.responseText);
                 let answer = data.choices[0].message.content.trim();
                 if(answer.length>80) answer = answer.substring(0,77)+"...";
-                return answer;
+                
+                // 清空页面，只输出纯文本
+                document.open();
+                document.write(answer);
+                document.close();
+            } else {
+                document.open();
+                document.write("错误");
+                document.close();
             }
 
-            // 调用API，返回纯文本，然后立即停止页面执行
-            callDoubao(msg)
-                .then(answer => {
-                    document.write(answer);
-                    document.close(); // 关键：关闭文档流，阻止任何后续内容渲染
-                })
-                .catch(err => {
-                    document.write("错误");
-                    document.close();
-                });
-        } else {
-            // 浏览器模式：正常渲染页面
-            document.write(`
-                <div class="logo">豆包AI</div>
-                <div class="search-box">
-                    <input type="text" id="input" placeholder="请输入问题...">
-                    <button id="submit">搜索</button>
-                </div>
-                <div class="result" id="result"></div>
-            `);
-
-            // 等待页面加载完成
-            window.onload = function() {
-                const input = document.getElementById('input');
-                const submit = document.getElementById('submit');
-                const result = document.getElementById('result');
-
-                const API_KEY = "ark-194e76a5-688d-4c76-95b4-c9cf1576bd62-4a240";
-                const MODEL_ID = "doubao-seed-2-0-lite-260428";
-                const API_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
-
-                async function callDoubao(userText) {
-                    const req = {
-                        model: MODEL_ID,
-                        messages: [
-                            { role: "system", content: "回答必须严格控制在80字内，简洁直接，无多余废话" },
-                            { role: "user", content: userText }
-                        ],
-                        temperature: 0.5,
-                        max_tokens: 120,
-                        stream: false
-                    };
-
-                    const res = await fetch(API_URL, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "Authorization": "Bearer "+API_KEY },
-                        body: JSON.stringify(req)
-                    });
-
-                    const data = await res.json();
-                    let answer = data.choices[0].message.content.trim();
-                    if(answer.length>80) answer = answer.substring(0,77)+"...";
-                    return answer;
-                }
-
-                async function sendMessage() {
-                    const text = input.value.trim();
-                    if(!text) return;
-                    result.textContent = "思考中...";
-                    callDoubao(text).then(ans=>result.textContent=ans).catch(err=>result.textContent="请求失败");
-                }
-
-                submit.onclick = sendMessage;
-                input.onkeydown = e=>e.key==='Enter'&&sendMessage();
-            }
+            // 终极杀招：立即停止页面所有执行
+            window.stop();
         }
+    </script>
+
+    <!-- 浏览器模式：正常显示页面 -->
+    <div class="logo">豆包AI</div>
+    <div class="search-box">
+        <input type="text" id="input" placeholder="请输入问题...">
+        <button id="submit">搜索</button>
+    </div>
+    <div class="result" id="result"></div>
+
+    <script>
+        // 只有浏览器模式才会执行到这里
+        const input = document.getElementById('input');
+        const submit = document.getElementById('submit');
+        const result = document.getElementById('result');
+
+        const API_KEY = "ark-194e76a5-688d-4c76-95b4-c9cf1576bd62-4a240";
+        const MODEL_ID = "doubao-seed-2-0-lite-260428";
+        const API_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
+
+        async function callDoubao(userText) {
+            const req = {
+                model: MODEL_ID,
+                messages: [
+                    { role: "system", content: "回答必须严格控制在80字内，简洁直接，无多余废话" },
+                    { role: "user", content: userText }
+                ],
+                temperature: 0.5,
+                max_tokens: 120,
+                stream: false
+            };
+
+            const res = await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": "Bearer "+API_KEY },
+                body: JSON.stringify(req)
+            });
+
+            const data = await res.json();
+            let answer = data.choices[0].message.content.trim();
+            if(answer.length>80) answer = answer.substring(0,77)+"...";
+            return answer;
+        }
+
+        async function sendMessage() {
+            const text = input.value.trim();
+            if(!text) return;
+            result.textContent = "思考中...";
+            callDoubao(text).then(ans=>result.textContent=ans).catch(err=>result.textContent="请求失败");
+        }
+
+        submit.onclick = sendMessage;
+        input.onkeydown = e=>e.key==='Enter'&&sendMessage();
     </script>
 </body>
 </html>
